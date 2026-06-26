@@ -137,28 +137,37 @@ def heavy_tail_activation(x: Tensor) -> Tensor:
 def apply_rotary_embedding(q: Tensor, k: Tensor, angles: Tensor) -> tuple[Tensor, Tensor]:
     """
     Применяет RoPE к q и k.
-    
-    Args:
-        q: (batch, seqlen, nheads, d_state) или (batch, nheads, d_state)
-        k: (batch, seqlen, nheads, d_state) или (batch, nheads, d_state)
-        angles: (batch, seqlen, num_angles) или (batch, num_angles)
+    Поддерживает:
+      - q, k: (batch, seq_len, heads, dim) или (batch, heads, dim)
+      - angles: (batch, seq_len, num_angles), (batch, num_angles) или (batch, heads, num_angles)
     """
     dim = q.shape[-1]
     num_angles = angles.shape[-1]
     half_dim = min(num_angles, dim // 2)
-    
-    # Берем первые half_dim пар
-    q_rot = q[..., :2*half_dim]
-    k_rot = k[..., :2*half_dim]
-    
+
+    # Берём первые 2*half_dim элементов
+    q_rot = q[..., :2 * half_dim]
+    k_rot = k[..., :2 * half_dim]
+
     # Разбиваем на пары
     q_rot = rearrange(q_rot, "... (p d) -> ... p d", p=2)
     k_rot = rearrange(k_rot, "... (p d) -> ... p d", p=2)
-    
-    # Вычисляем cos и sin
-    cos = torch.cos(angles[..., :half_dim])
-    sin = torch.sin(angles[..., :half_dim])
-    
+
+    # Вычисляем cos и sin для нужного числа углов
+    cos = angles[..., :half_dim].cos()
+    sin = angles[..., :half_dim].sin()
+
+    # Добавляем размерность для heads, если её нет в angles
+    if q.dim() == 4 and angles.dim() == 3:
+        # q: (batch, seq_len, heads, dim), angles: (batch, seq_len, num_angles)
+        cos = cos.unsqueeze(-2)  # -> (batch, seq_len, 1, half_dim)
+        sin = sin.unsqueeze(-2)
+    elif q.dim() == 3 and angles.dim() == 2:
+        # q: (batch, heads, dim), angles: (batch, num_angles)
+        cos = cos.unsqueeze(1)   # -> (batch, 1, half_dim)
+        sin = sin.unsqueeze(1)
+    # Если q.dim() == 3 и angles.dim() == 3 (batch, heads, num_angles) – оставляем как есть
+
     # Применяем поворот
     q_rot = torch.stack([
         q_rot[..., 0] * cos - q_rot[..., 1] * sin,
@@ -168,14 +177,15 @@ def apply_rotary_embedding(q: Tensor, k: Tensor, angles: Tensor) -> tuple[Tensor
         k_rot[..., 0] * cos - k_rot[..., 1] * sin,
         k_rot[..., 0] * sin + k_rot[..., 1] * cos
     ], dim=-2)
-    
+
+    # Собираем обратно
     q_rot = rearrange(q_rot, "... p d -> ... (p d)")
     k_rot = rearrange(k_rot, "... p d -> ... (p d)")
-    
-    # Остальную часть оставляем как есть
-    q = torch.cat([q_rot, q[..., 2*half_dim:]], dim=-1)
-    k = torch.cat([k_rot, k[..., 2*half_dim:]], dim=-1)
-    
+
+    # Объединяем с неизменённой частью
+    q = torch.cat([q_rot, q[..., 2 * half_dim:]], dim=-1)
+    k = torch.cat([k_rot, k[..., 2 * half_dim:]], dim=-1)
+
     return q, k
 
 
