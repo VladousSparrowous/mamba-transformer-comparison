@@ -104,13 +104,13 @@ def run_comparison():
     print("="*50)
     config_spt = ExperimentConfig(
         pretrain=True,
-        pretrain_epochs=1,  # Reduced
+        pretrain_epochs=2,  # Reduced
         num_epochs=3,  # Reduced
         d_model=64,
         n_layer=1,
         d_state=8,
-        batch_size=32,
-        max_seq_len=256
+        batch_size=16,
+        max_seq_len=512
     )
     acc_spt = run_experiment(config_spt)
     

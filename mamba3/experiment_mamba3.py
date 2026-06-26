@@ -94,7 +94,7 @@ def run_comparison():
     
     config_spt = ExperimentConfig(
         pretrain=True,
-        pretrain_epochs=1,
+        pretrain_epochs=2,
         num_epochs=3,
         d_model=64,
         n_layer=1,
@@ -102,8 +102,8 @@ def run_comparison():
         expand=2,
         headdim=32,
         chunk_size=32,
-        batch_size=32,
-        max_seq_len=128
+        batch_size=16,
+        max_seq_len=512
     )
     acc_spt = run_experiment(config_spt)
     

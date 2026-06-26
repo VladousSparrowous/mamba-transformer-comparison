@@ -122,12 +122,12 @@ def run_comparison_transformer():
     print("="*50)
     config_spt = ExperimentConfig(
         pretrain=True,
-        pretrain_epochs=1,
+        pretrain_epochs=2,
         num_epochs=3,
         d_model=64,
         n_layer=2,
         batch_size=16,
-        max_seq_len=256
+        max_seq_len=512
     )
     acc_spt = run_transformer_experiment(config_spt)
     
