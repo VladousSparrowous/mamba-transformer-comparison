@@ -6,23 +6,26 @@ from tqdm import tqdm
 
 class LRATextDataset(Dataset):
     """LRA Text dataset (IMDb reviews at character level)"""
-    
-    def __init__(self, split="train", max_seq_len=2048):
+
+    def __init__(self, split="train", max_seq_len=2048, vocab=None):
         self.max_seq_len = max_seq_len
-        
+
         # Load IMDb dataset
         dataset = load_dataset("imdb", split=split)
-        
+
         # Character-level tokenization
-        self.char_to_idx = self._build_vocab(dataset)
+        if vocab is not None:
+            self.char_to_idx = vocab
+        else:
+            self.char_to_idx = self._build_vocab(dataset)
+
         self.idx_to_char = {v: k for k, v in self.char_to_idx.items()}
         self.vocab_size = len(self.char_to_idx)
-        
+
         self.data = []
         self.labels = []
-        
+
         for item in tqdm(dataset, desc=f"Processing {split} set"):
-            # Tokenize and truncate/pad
             tokens = self._tokenize(item["text"])
             self.data.append(tokens)
             self.labels.append(item["label"])

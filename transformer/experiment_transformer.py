@@ -32,10 +32,11 @@ def run_transformer_experiment(config, use_wandb=False):
     gc.collect()
     
     # Load data
+
     print("Loading datasets...")
     train_dataset = LRATextDataset("train", config.max_seq_len)
-    val_dataset = LRATextDataset("test", config.max_seq_len)
-    
+    val_dataset = LRATextDataset("test", config.max_seq_len, vocab=train_dataset.char_to_idx)
+        
     # Update vocab_size in config to match dataset
     config.vocab_size = train_dataset.vocab_size
     
