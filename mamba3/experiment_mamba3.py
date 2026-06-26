@@ -31,7 +31,7 @@ def run_experiment(config, use_wandb=False):
     
     print("Loading datasets...")
     train_dataset = LRATextDataset("train", config.max_seq_len)
-    val_dataset = LRATextDataset("test", config.max_seq_len)
+    val_dataset = LRATextDataset("test", config.max_seq_len, vocab=train_dataset.char_to_idx)
     
     config.vocab_size = train_dataset.vocab_size
     
@@ -97,12 +97,12 @@ def run_comparison():
         pretrain_epochs=1,
         num_epochs=3,
         d_model=64,
-        n_layer=2,
+        n_layer=1,
         d_state=8,
         expand=2,
         headdim=32,
         chunk_size=32,
-        batch_size=8,
+        batch_size=32,
         max_seq_len=256
     )
     acc_spt = run_experiment(config_spt)

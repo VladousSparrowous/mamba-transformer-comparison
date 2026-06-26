@@ -101,16 +101,7 @@ class Mamba(nn.Module):
     @staticmethod
     def from_pretrained(pretrained_model_name: str):
         """Load pretrained weights from HuggingFace into model.
-    
-        Args:
-            pretrained_model_name: One of
-                * 'state-spaces/mamba-2.8b-slimpj'
-                * 'state-spaces/mamba-2.8b'
-                * 'state-spaces/mamba-1.4b'
-                * 'state-spaces/mamba-790m'
-                * 'state-spaces/mamba-370m'
-                * 'state-spaces/mamba-130m'
-                            
+
         Returns:
             model: Mamba model with weights loaded
     

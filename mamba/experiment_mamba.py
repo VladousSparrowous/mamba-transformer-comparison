@@ -32,7 +32,7 @@ def run_experiment(config, use_wandb=False):
     # Load data with smaller batch size
     print("Loading datasets...")
     train_dataset = LRATextDataset("train", config.max_seq_len)
-    val_dataset = LRATextDataset("test", config.max_seq_len)
+    val_dataset = LRATextDataset("test", config.max_seq_len, vocab=train_dataset.char_to_idx)
     
     # Update vocab_size in config to match dataset
     config.vocab_size = train_dataset.vocab_size
@@ -100,16 +100,16 @@ def run_comparison():
 
 
     print("\n" + "="*50)
-    print("Experiment 2: Mamba with Self-Pretraining (SPT)")
+    print("Experiment: Mamba with Self-Pretraining (SPT)")
     print("="*50)
     config_spt = ExperimentConfig(
         pretrain=True,
         pretrain_epochs=1,  # Reduced
         num_epochs=3,  # Reduced
         d_model=64,
-        n_layer=2,
+        n_layer=1,
         d_state=8,
-        batch_size=16,
+        batch_size=32,
         max_seq_len=256
     )
     acc_spt = run_experiment(config_spt)
