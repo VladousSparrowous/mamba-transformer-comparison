@@ -98,69 +98,26 @@ def run_experiment(config, use_wandb=False):
 
 def run_comparison():
 
-    '''
-    # Experiment 0:
-    print("\n" + "="*50)
-    print("Experiment 0: work or not")
-    print("="*50)
-    config_from_scratch = ExperimentConfig(
-        pretrain=False,
-        num_epochs=1,  
-        d_model=16,
-        n_layer=2,
-        d_state=4,
-        batch_size=2,
-        max_seq_len=64
-    )
-    acc_scratch = run_experiment(config_from_scratch)
-    
-    # Clear memory between experiments
-    torch.cuda.empty_cache()
-    gc.collect()
 
-    """Run comparison: from-scratch vs SPT for Mamba"""
-    
-    # Experiment 1: Mamba from scratch (smaller model)
-    print("\n" + "="*50)
-    print("Experiment 1: Mamba trained from scratch")
-    print("="*50)
-    config_from_scratch = ExperimentConfig(
-        pretrain=False,
-        num_epochs=20,  # Reduced
-        d_model=64,
-        n_layer=2,
-        d_state=8,
-        batch_size=16,
-        max_seq_len=512
-    )
-    acc_scratch = run_experiment(config_from_scratch)
-    
-    # Clear memory between experiments
-    torch.cuda.empty_cache()
-    gc.collect()
-    '''
-    # Experiment 2: Mamba with SPT
     print("\n" + "="*50)
     print("Experiment 2: Mamba with Self-Pretraining (SPT)")
     print("="*50)
     config_spt = ExperimentConfig(
         pretrain=True,
-        pretrain_epochs=10,  # Reduced
-        num_epochs=20,  # Reduced
+        pretrain_epochs=2,  # Reduced
+        num_epochs=3,  # Reduced
         d_model=64,
         n_layer=2,
         d_state=8,
-        batch_size=16,
-        max_seq_len=512
+        batch_size=8,
+        max_seq_len=4096
     )
     acc_spt = run_experiment(config_spt)
     
     print("\n" + "="*50)
     print("RESULTS SUMMARY")
     print("="*50)
-    # print(f"Mamba from scratch: {acc_scratch:.4f}")
     print(f"Mamba with SPT:     {acc_spt:.4f}")
-    # print(f"Improvement:        {(acc_spt - acc_scratch)*100:.2f}%")
     print("="*50)
 
 if __name__ == "__main__":
