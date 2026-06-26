@@ -111,7 +111,7 @@ class Trainer:
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
                 
-                x = self.model.embedding(inputs)
+                x = self.model.backbone.embedding(inputs)
                 for layer in self.model.layers:
                     x = layer(x)
                 x = self.model.norm_f(x)
@@ -194,7 +194,7 @@ class Trainer:
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
                 
-                x = self.model.embedding(inputs)
+                x = self.model.backbone.embedding(inputs)
                 for layer in self.model.layers:
                     x = layer(x)
                 x = self.model.norm_f(x)
