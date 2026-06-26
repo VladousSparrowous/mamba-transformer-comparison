@@ -395,8 +395,9 @@ class Mamba3(nn.Module):
         y = y + x * self.D.unsqueeze(-1)
         
         # Выход
-        y = rearrange(y, "b l h p -> b l (h p)")
-        z = rearrange(z, "b l h p -> b l (h p)")
+        # Вместо rearrange используем reshape
+        y = y.reshape(batch, seqlen, -1)  # -> (batch, seqlen, d_inner)
+        z = z.reshape(batch, seqlen, -1)  # -> (batch, seqlen, d_inner)
         y = self.norm(y, z)
         y = self.out_proj(y)
         
