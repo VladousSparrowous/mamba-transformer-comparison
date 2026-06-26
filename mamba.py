@@ -21,9 +21,6 @@ Glossary:
     dt_rank: rank of Δ                  (See [1] Section 3.6 "Parameterization of ∆")
 
 """
-# Add at the beginning of mamba.py
-import os
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 from __future__ import annotations
 import math
@@ -33,6 +30,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from dataclasses import dataclass
 from einops import rearrange, repeat, einsum
+
+
+import os
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 
 @dataclass
