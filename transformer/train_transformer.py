@@ -53,7 +53,7 @@ class TransformerTrainer:
                 labels = labels.to(self.device)
                 
                 # Forward pass - get logits from transformer
-                logits = self.model(inputs)
+                logits, _ = self.model(inputs)
                 
                 # MLM loss (only on masked positions)
                 loss = F.cross_entropy(

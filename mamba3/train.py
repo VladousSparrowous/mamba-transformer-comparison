@@ -49,7 +49,7 @@ class Trainer:
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
                 
-                logits = self.model(inputs)
+                logits, _ = self.model(inputs)
                 
                 loss = F.cross_entropy(
                     logits.view(-1, self.config.vocab_size),
