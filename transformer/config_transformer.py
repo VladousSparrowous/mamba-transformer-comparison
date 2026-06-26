@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 
 @dataclass
-class TransformerExperimentConfig:
+class ExperimentConfig:
     # Model parameters
     model_name: str = "transformer"
     d_model: int = 128
