@@ -82,6 +82,9 @@ class Trainer:
         patience = 10
         patience_counter = 0
         
+        # Create a classification head for finetuning
+        self.classification_head = nn.Linear(self.config.d_model, 2).to(self.device)
+        
         for epoch in range(self.config.num_epochs):
             # Training
             self.model.train()
@@ -97,15 +100,15 @@ class Trainer:
                 
                 self.optimizer.zero_grad()
                 
-                logits = self.model(inputs)
+                # Get embeddings from the model
+                x = self.model.embedding(inputs)
+                for layer in self.model.layers:
+                    x = layer(x)
+                x = self.model.norm_f(x)
                 
-                # Classification: use CLS token or mean pooling
-                # For simplicity, use mean pooling
-                logits = logits.mean(dim=1)  # (batch, d_model)
-                logits = self.model.lm_head(logits)  # (batch, vocab_size)
-                
-                # For binary classification, use first 2 logits
-                logits = logits[:, :2]
+                # Mean pooling and classification
+                pooled = x.mean(dim=1)  # (batch, d_model)
+                logits = self.classification_head(pooled)  # (batch, 2)
                 
                 loss = F.cross_entropy(logits, labels)
                 loss.backward()
@@ -161,7 +164,7 @@ class Trainer:
             return test_acc
         
         return best_val_acc
-    
+
     def evaluate(self, dataloader):
         """Evaluate the model"""
         self.model.eval()
@@ -174,9 +177,15 @@ class Trainer:
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
                 
-                logits = self.model(inputs)
-                logits = logits.mean(dim=1)
-                logits = self.model.lm_head(logits)[:, :2]
+                # Get embeddings from the model
+                x = self.model.embedding(inputs)
+                for layer in self.model.layers:
+                    x = layer(x)
+                x = self.model.norm_f(x)
+                
+                # Mean pooling and classification
+                pooled = x.mean(dim=1)  # (batch, d_model)
+                logits = self.classification_head(pooled)  # (batch, 2)
                 
                 pred = logits.argmax(dim=1)
                 correct += (pred == labels).sum().item()
