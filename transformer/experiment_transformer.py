@@ -3,7 +3,7 @@ import torch
 import wandb
 import random
 import numpy as np
-from config import ExperimentConfig
+from config_transformer import ExperimentConfig
 from data_utils import LRATextDataset, LRATextDatasetSPT
 from train_transformer import TransformerTrainer
 from transformer import LocalTransformer
