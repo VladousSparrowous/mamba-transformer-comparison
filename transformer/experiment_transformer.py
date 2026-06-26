@@ -1,11 +1,12 @@
+# experiment_transformer.py
 import torch
 import wandb
 import random
 import numpy as np
 from config import ExperimentConfig
 from data_utils import LRATextDataset, LRATextDatasetSPT
-from train import Trainer
-from mamba import Mamba
+from train_transformer import TransformerTrainer
+from transformer import LocalTransformer
 from torch.utils.data import DataLoader
 import gc
 
@@ -15,21 +16,22 @@ def set_seed(seed=42):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-def run_experiment(config, use_wandb=False):
+def run_transformer_experiment(config, use_wandb=False):
     set_seed(42)
     
     if use_wandb:
-        wandb.init(project="mamba-lra-experiment", config=config.__dict__)
+        wandb.init(project="transformer-lra-experiment", config=config.__dict__)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
-    print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
+    if torch.cuda.is_available():
+        print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
     
     # Clear cache before loading
     torch.cuda.empty_cache()
     gc.collect()
     
-    # Load data with smaller batch size
+    # Load data
     print("Loading datasets...")
     train_dataset = LRATextDataset("train", config.max_seq_len)
     val_dataset = LRATextDataset("test", config.max_seq_len)
@@ -56,10 +58,25 @@ def run_experiment(config, use_wandb=False):
         pin_memory=True
     )
     
-    # Initialize model with smaller config
-    print("Initializing model...")
-    model_args = config.get_model_args()
-    model = Mamba(model_args)
+    # Initialize transformer model
+    print("Initializing Transformer model...")
+    model = LocalTransformer(
+        num_tokens=config.vocab_size,
+        max_seq_len=config.max_seq_len,
+        dim=config.d_model,
+        depth=config.n_layer,
+        causal=False,  # For classification we don't need causal
+        local_attn_window_size=min(128, config.max_seq_len // 4),
+        dim_head=64,
+        heads=8,
+        ff_mult=config.expand,
+        attn_dropout=0.1,
+        ff_dropout=0.1,
+        ignore_index=-100,
+        use_xpos=True,
+        xpos_scale_base=512,
+        use_dynamic_pos_bias=True
+    )
     
     # Print model size
     total_params = sum(p.numel() for p in model.parameters())
@@ -67,7 +84,7 @@ def run_experiment(config, use_wandb=False):
     print(f"Model size: {total_params * 4 / 1024**2:.2f} MB (float32)")
     
     # Create trainer
-    trainer = Trainer(model, config, device)
+    trainer = TransformerTrainer(model, config, device)
     
     # Self-pretraining
     if config.pretrain:
@@ -96,29 +113,28 @@ def run_experiment(config, use_wandb=False):
     
     return test_acc
 
-def run_comparison():
+def run_comparison_transformer():
 
-
+    
     print("\n" + "="*50)
-    print("Experiment 2: Mamba with Self-Pretraining (SPT)")
+    print("Experiment: Transformer with Self-Pretraining (SPT)")
     print("="*50)
     config_spt = ExperimentConfig(
         pretrain=True,
-        pretrain_epochs=1,  # Reduced
-        num_epochs=3,  # Reduced
+        pretrain_epochs=1,
+        num_epochs=3,
         d_model=64,
         n_layer=2,
-        d_state=8,
         batch_size=16,
         max_seq_len=256
     )
-    acc_spt = run_experiment(config_spt)
+    acc_spt = run_transformer_experiment(config_spt)
     
     print("\n" + "="*50)
     print("RESULTS SUMMARY")
     print("="*50)
-    print(f"Mamba with SPT:     {acc_spt:.4f}")
+    print(f"Transformer with SPT:    {acc_spt:.4f}")
     print("="*50)
 
 if __name__ == "__main__":
-    run_comparison()
+    run_comparison_transformer()
