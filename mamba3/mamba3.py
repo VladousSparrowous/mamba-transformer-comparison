@@ -203,12 +203,8 @@ def segsum(x: Tensor, device: Device = None) -> Tensor:
 
 def ssd_with_rope(x, A, B, C, angles, A_bias, B_bias, chunk_size, rotary_dim, device: Device = None):
     """
-    SSD с RoPE для Mamba-3.
-    
-    Аналогичен стандартному SSD, но с:
-    1. Применением RoPE к B и C
-    2. Использованием heavy-tail активации для A
-    3. Добавлением biases
+    SSD с опциональным RoPE и biases для Mamba-3.
+    Если biases или angles равны None, соответствующие операции пропускаются.
     """
     batch, seqlen, nheads, headdim = x.shape
     d_state = B.shape[-1]
@@ -217,9 +213,12 @@ def ssd_with_rope(x, A, B, C, angles, A_bias, B_bias, chunk_size, rotary_dim, de
     A = -heavy_tail_activation(A)
     A = torch.clamp(A, max=-1e-4)  # A_floor
     
-    # Применяем RoPE к B и C
-    B = B + B_bias
-    C = C + A_bias
+    # Добавляем biases, если они переданы
+    if B_bias is not None:
+        B = B + B_bias
+    if A_bias is not None:
+        C = C + A_bias
+    # Применяем RoPE, если передан angles
     if angles is not None:
         B, C = apply_rotary_embedding(B, C, angles)
     
