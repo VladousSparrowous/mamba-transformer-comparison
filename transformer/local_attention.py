@@ -186,10 +186,17 @@ class LocalAttention(nn.Module):
 
         sim = einsum('b h i e, b h j e -> b h i j', bq, bk)  # (b, h, ws, ws*(1+f+b))
 
+        # Check if attn_bias dimensions match before adding
         if exists(attn_bias):
             heads = attn_bias.shape[0]
             assert (b % heads) == 0
-
+            
+            # Ensure attn_bias has correct dimensions for broadcasting
+            # attn_bias: (h, i, j) where i and j should match sim's dimensions
+            if attn_bias.shape[1] != sim.shape[2] or attn_bias.shape[2] != sim.shape[3]:
+                # Resize attn_bias to match sim dimensions
+                attn_bias = attn_bias[:, :sim.shape[2], :sim.shape[3]]
+            
             attn_bias = repeat(attn_bias, 'h i j -> (b h) 1 i j', b=b // heads)
             sim = sim + attn_bias
         # deals with masking out padding - not the attention mask

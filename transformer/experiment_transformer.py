@@ -75,7 +75,7 @@ def run_transformer_experiment(config, use_wandb=False):
         ignore_index=-100,
         use_xpos=True,
         xpos_scale_base=512,
-        use_dynamic_pos_bias=True
+        use_dynamic_pos_bias=False
     )
     
     # Print model size
