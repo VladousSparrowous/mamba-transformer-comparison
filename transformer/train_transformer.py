@@ -121,17 +121,14 @@ class TransformerTrainer:
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
                 
-                # Get sequence representations from transformer
-                # Use the CLS token or mean pooling
+                # Get hidden states from transformer
                 with torch.set_grad_enabled(True):
-                    logits_full = self.model(inputs)  # (batch, seq_len, vocab_size)
+                    # Get hidden states (not logits)
+                    _, hidden = self.model(inputs, return_hidden=True)
+                    # hidden shape: (batch, seq_len, d_model)
                     
-                    # Use mean pooling or first token for classification
-                    # Option 1: Mean pooling
-                    pooled = logits_full.mean(dim=1)  # (batch, d_model)
-                    
-                    # Option 2: Use first token (like BERT)
-                    # pooled = logits_full[:, 0, :]
+                    # Use mean pooling over sequence dimension
+                    pooled = hidden.mean(dim=1)  # (batch, d_model)
                     
                     logits = self.classification_head(pooled)  # (batch, 2)
                 
@@ -207,7 +204,7 @@ class TransformerTrainer:
             return test_acc
         
         return best_val_acc
-    
+
     def evaluate(self, dataloader, return_loss=False):
         """Evaluate the model"""
         self.model.eval()
@@ -222,11 +219,11 @@ class TransformerTrainer:
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
                 
-                # Get logits from transformer
-                logits_full = self.model(inputs)
+                # Get hidden states from transformer
+                _, hidden = self.model(inputs, return_hidden=True)
                 
-                # Mean pooling or first token
-                pooled = logits_full.mean(dim=1)  # (batch, d_model)
+                # Mean pooling
+                pooled = hidden.mean(dim=1)  # (batch, d_model)
                 logits = self.classification_head(pooled)  # (batch, 2)
                 
                 # Calculate loss

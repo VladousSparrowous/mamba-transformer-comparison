@@ -220,7 +220,7 @@ class LocalTransformer(nn.Module):
 
         return out[:, n:]
 
-    def forward(self, x, mask = None, return_loss = False):
+    def forward(self, x, mask = None, return_loss = False, return_hidden = False):
         if return_loss:
             x, labels = x[:, :-1], x[:, 1:]
 
@@ -230,27 +230,25 @@ class LocalTransformer(nn.Module):
         assert n <= self.max_seq_len
         x = x + self.pos_emb(torch.arange(n, device = device))
 
-        # dynamic pos bias - FIX: adjust for actual sequence length
+        # dynamic pos bias - fixed
         attn_bias = None
         if exists(self.dynamic_pos_bias):
-            # Use the actual sequence length instead of fixed window size
-            # For the attention, we need to create bias for the actual sequence
-            # We'll use the window size for the maximum, but ensure it matches
-            actual_window_size = min(n, self.local_attn_window_size)
-            attn_bias = self.dynamic_pos_bias(actual_window_size, actual_window_size * 2)
-            
-            # If n is smaller than window_size, we need to handle it properly
-            if n < self.local_attn_window_size:
-                # Create bias for the actual sequence length
-                attn_bias = self.dynamic_pos_bias(n, n * 2)
+            actual_window = min(n, self.local_attn_window_size)
+            attn_bias = self.dynamic_pos_bias(actual_window, actual_window * 2)
 
         # go through layers
         for attn, ff in self.layers:
             x = attn(x, mask = mask, attn_bias = attn_bias) + x
             x = ff(x) + x
-
+        
+        # Store hidden states before logits
+        hidden = x
+        
         logits = self.to_logits(x)
 
+        if return_hidden:
+            return logits, hidden
+        
         if not return_loss:
             return logits
 
