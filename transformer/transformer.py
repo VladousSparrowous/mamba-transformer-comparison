@@ -220,6 +220,7 @@ class LocalTransformer(nn.Module):
 
         return out[:, n:]
 
+
     def forward(self, x, mask = None, return_loss = False, return_hidden = False):
         if return_loss:
             x, labels = x[:, :-1], x[:, 1:]
@@ -233,8 +234,9 @@ class LocalTransformer(nn.Module):
         # dynamic pos bias - fixed
         attn_bias = None
         if exists(self.dynamic_pos_bias):
-            actual_window = min(n, self.local_attn_window_size)
-            attn_bias = self.dynamic_pos_bias(actual_window, actual_window * 2)
+            # Fix: Use n instead of window size for proper bias dimensions
+            # The bias should match the full sequence length, not just local window
+            attn_bias = self.dynamic_pos_bias(n, n)  # Changed from local_attn_window_size
 
         # go through layers
         for attn, ff in self.layers:
