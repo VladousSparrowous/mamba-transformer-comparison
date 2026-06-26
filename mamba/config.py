@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from dataclasses import dataclass
-from mamba import ModelArgs
+from mamba.mamba import ModelArgs
 
 @dataclass
 class ExperimentConfig:

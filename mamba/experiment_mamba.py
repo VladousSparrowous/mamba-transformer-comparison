@@ -2,10 +2,10 @@ import torch
 import wandb
 import random
 import numpy as np
-from config import ExperimentConfig
-from data_utils import LRATextDataset, LRATextDatasetSPT
-from train import Trainer
-from mamba import Mamba
+from mamba.config import ExperimentConfig
+from mamba.data_utils import LRATextDataset, LRATextDatasetSPT
+from mamba.train import Trainer
+from mamba.mamba import Mamba
 from torch.utils.data import DataLoader
 import gc
 
