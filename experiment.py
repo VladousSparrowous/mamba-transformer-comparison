@@ -97,6 +97,27 @@ def run_experiment(config, use_wandb=False):
     return test_acc
 
 def run_comparison():
+
+
+    # Experiment 0:
+    print("\n" + "="*50)
+    print("Experiment 0: work or not")
+    print("="*50)
+    config_from_scratch = ExperimentConfig(
+        pretrain=False,
+        num_epochs=1,  
+        d_model=16,
+        n_layer=2,
+        d_state=4,
+        batch_size=2,
+        max_seq_len=64
+    )
+    acc_scratch = run_experiment(config_from_scratch)
+    
+    # Clear memory between experiments
+    torch.cuda.empty_cache()
+    gc.collect()
+
     """Run comparison: from-scratch vs SPT for Mamba"""
     
     # Experiment 1: Mamba from scratch (smaller model)
