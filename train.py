@@ -7,7 +7,7 @@ from transformers import get_cosine_schedule_with_warmup
 from tqdm import tqdm
 import wandb
 import os
-from model import Mamba, ModelArgs
+from mamba import Mamba, ModelArgs
 
 class Trainer:
     def __init__(self, model, config, device="cuda"):

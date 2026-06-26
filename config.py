@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from model import ModelArgs
+from mamba import ModelArgs
 
 @dataclass
 class ExperimentConfig:
