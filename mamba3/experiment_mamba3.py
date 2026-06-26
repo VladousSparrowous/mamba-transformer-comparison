@@ -103,7 +103,7 @@ def run_comparison():
         headdim=32,
         chunk_size=32,
         batch_size=32,
-        max_seq_len=256
+        max_seq_len=128
     )
     acc_spt = run_experiment(config_spt)
     

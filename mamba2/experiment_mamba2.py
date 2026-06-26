@@ -111,7 +111,7 @@ def run_comparison():
         n_layer=1,
         d_state=8,
         batch_size=32,
-        max_seq_len=256,
+        max_seq_len=128,
         headdim=32,
         chunk_size=32
     )
