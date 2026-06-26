@@ -396,6 +396,7 @@ class Mamba3(nn.Module):
         
         # Выход
         y = rearrange(y, "b l h p -> b l (h p)")
+        z = rearrange(z, "b l h p -> b l (h p)")
         y = self.norm(y, z)
         y = self.out_proj(y)
         
