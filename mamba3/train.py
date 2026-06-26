@@ -112,9 +112,9 @@ class Trainer:
                 labels = labels.to(self.device)
                 
                 x = self.model.backbone.embedding(inputs)
-                for layer in self.model.layers:
-                    x = layer(x)
-                x = self.model.norm_f(x)
+                for layer in self.model.backbone.layers:
+                    x, _ = layer.mixer(layer.norm(x), None)  # или x = layer.mixer(layer.norm(x))[0]
+                x = self.model.backbone.norm_f(x)
                 
                 pooled = x.mean(dim=1)
                 logits = self.classification_head(pooled)
@@ -195,9 +195,9 @@ class Trainer:
                 labels = labels.to(self.device)
                 
                 x = self.model.backbone.embedding(inputs)
-                for layer in self.model.layers:
-                    x = layer(x)
-                x = self.model.norm_f(x)
+                for layer in self.model.backbone.layers:
+                    x, _ = layer.mixer(layer.norm(x), None)
+                x = self.model.backbone.norm_f(x)
                 
                 pooled = x.mean(dim=1)
                 logits = self.classification_head(pooled)
