@@ -316,17 +316,25 @@ class MambaBlock(nn.Module):
         deltaA = torch.exp(einsum(delta, A, 'b l d_in, d_in n -> b l d_in n'))
         deltaB_u = einsum(delta, B, u, 'b l d_in, b l n, b l d_in -> b l d_in n')
         
-        # Perform selective scan (see scan_SSM() in The Annotated S4 [2])
-        # Note that the below is sequential, while the official implementation does a much faster parallel scan that
-        # is additionally hardware-aware (like FlashAttention).
+        # Perform selective scan
         x = torch.zeros((b, d_in, n), device=deltaA.device)
         ys = []    
-        for i in range(l):
-            x = deltaA[:, i] * x + deltaB_u[:, i]
-            y = einsum(x, C[:, i, :], 'b d_in n, b n -> b d_in')
-            ys.append(y)
-        y = torch.stack(ys, dim=1)  # shape (b, l, d_in)
         
+        for i in range(l):
+            # Safety check: ensure dimensions match before multiplication
+            # deltaA[:, i] shape: (b, d_in, n)
+            # x shape: (b, d_in, n)
+            # deltaB_u[:, i] shape: (b, d_in, n)
+            x = deltaA[:, i] * x + deltaB_u[:, i]
+            
+            # Ensure C[:, i, :] has correct shape: (b, n)
+            c_i = C[:, i, :]  # shape: (b, n)
+            # x shape: (b, d_in, n)
+            # We need to contract the n dimension
+            y = torch.einsum('bdn,bn->bd', x, c_i)  # shape: (b, d_in)
+            ys.append(y)
+        
+        y = torch.stack(ys, dim=1)  # shape (b, l, d_in)
         y = y + u * D
     
         return y

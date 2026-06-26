@@ -33,7 +33,7 @@ class LRATextDataset(Dataset):
         for item in dataset:
             chars.update(set(item["text"]))
         chars = sorted(list(chars))
-        # Add special tokens
+        # Add special tokens - ensure these are within vocab range
         vocab = {"<PAD>": 0, "<MASK>": 1, "<UNK>": 2}
         for i, char in enumerate(chars):
             vocab[char] = i + 3
@@ -66,6 +66,9 @@ class LRATextDatasetSPT(Dataset):
         self.base = base_dataset
         self.masking_ratio = masking_ratio
         
+        # Store a reference to the base dataset's char_to_idx
+        self.char_to_idx = base_dataset.char_to_idx
+        
     def __len__(self):
         return len(self.base)
     
@@ -75,7 +78,15 @@ class LRATextDatasetSPT(Dataset):
         # Create masked version for pretraining
         masked_tokens = tokens.clone()
         mask = torch.rand(len(tokens)) < self.masking_ratio
-        masked_tokens[mask] = self.base.char_to_idx["<MASK>"]
+        
+        # Only mask actual tokens, not padding
+        mask = mask & (tokens != self.char_to_idx["<PAD>"])
+        
+        # Don't mask special tokens
+        mask = mask & (tokens != self.char_to_idx["<MASK>"])
+        mask = mask & (tokens != self.char_to_idx["<UNK>"])
+        
+        masked_tokens[mask] = self.char_to_idx["<MASK>"]
         
         # Labels are the original tokens for masked positions
         labels = tokens.clone()

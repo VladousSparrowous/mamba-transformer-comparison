@@ -34,14 +34,18 @@ def run_experiment(config, use_wandb=False):
     train_dataset = LRATextDataset("train", config.max_seq_len)
     val_dataset = LRATextDataset("test", config.max_seq_len)
     
-    # Update vocab_size
+    # Update vocab_size in config to match dataset
     config.vocab_size = train_dataset.vocab_size
+    
+    # Ensure vocab_size is multiple of 8 for efficiency
+    if config.vocab_size % 8 != 0:
+        config.vocab_size += (8 - config.vocab_size % 8)
     
     train_loader = DataLoader(
         train_dataset,
         batch_size=config.batch_size,
         shuffle=True,
-        num_workers=2,  # Reduced from 4
+        num_workers=2,
         pin_memory=True
     )
     val_loader = DataLoader(

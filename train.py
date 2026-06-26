@@ -16,6 +16,9 @@ class Trainer:
         self.config = config
         self.device = device
         
+        # Set vocab size in config to match model
+        self.config.vocab_size = model.args.vocab_size
+        
         self.optimizer = AdamW(
             model.parameters(),
             lr=config.learning_rate,
@@ -103,6 +106,9 @@ class Trainer:
         # Use gradient accumulation for memory efficiency
         accumulation_steps = 2
         
+        # Add validation tracking
+        val_losses = []
+        
         for epoch in range(self.config.num_epochs):
             # Training
             self.model.train()
@@ -156,7 +162,7 @@ class Trainer:
             train_loss = train_loss / len(train_loader)
             
             # Validation
-            val_acc = self.evaluate(val_loader)
+            val_acc, val_loss = self.evaluate(val_loader, return_loss=True)
             
             print(f"Epoch {epoch+1}: Train Loss = {train_loss:.4f}, Train Acc = {train_acc:.4f}, Val Acc = {val_acc:.4f}")
             
@@ -190,18 +196,19 @@ class Trainer:
         
         # Test
         if test_loader:
-            test_acc = self.evaluate(test_loader)
+            test_acc, _ = self.evaluate(test_loader, return_loss=True)
             print(f"Test Accuracy: {test_acc:.4f}")
             return test_acc
         
         return best_val_acc
     
-    def evaluate(self, dataloader):
+    def evaluate(self, dataloader, return_loss=False):
         """Evaluate the model"""
         self.model.eval()
         self.classification_head.eval()
         correct = 0
         total = 0
+        total_loss = 0
         
         with torch.no_grad():
             for batch in tqdm(dataloader, desc="Evaluating"):
@@ -219,6 +226,11 @@ class Trainer:
                 pooled = x.mean(dim=1)  # (batch, d_model)
                 logits = self.classification_head(pooled)  # (batch, 2)
                 
+                # Calculate loss
+                if return_loss:
+                    loss = F.cross_entropy(logits, labels)
+                    total_loss += loss.item()
+                
                 pred = logits.argmax(dim=1)
                 correct += (pred == labels).sum().item()
                 total += labels.size(0)
@@ -226,4 +238,8 @@ class Trainer:
                 # Clear cache
                 torch.cuda.empty_cache()
         
-        return correct / total
+        accuracy = correct / total
+        
+        if return_loss:
+            return accuracy, total_loss / len(dataloader)
+        return accuracy

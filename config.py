@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from dataclasses import dataclass
 from mamba import ModelArgs
 
 @dataclass
@@ -11,19 +12,19 @@ class ExperimentConfig:
     expand: int = 2
     
     # Training parameters
-    batch_size: int = 16  # Reduced from 32
+    batch_size: int = 8  # Further reduced for stability
     learning_rate: float = 1e-3
-    num_epochs: int = 50  # Reduced from 100
-    warmup_steps: int = 500  # Reduced from 1000
-    weight_decay: float = 0.1
+    num_epochs: int = 20  # Reduced for debugging
+    warmup_steps: int = 100  # Reduced
+    weight_decay: float = 0.01  # Reduced from 0.1
     
     # SPT parameters
     pretrain: bool = True
-    pretrain_epochs: int = 20  # Reduced from 50
+    pretrain_epochs: int = 10  # Reduced
     masking_ratio: float = 0.15
     
     # Data parameters
-    max_seq_len: int = 512  # Reduced from 2048 for memory
+    max_seq_len: int = 256  # Reduced from 512 for memory
     vocab_size: int = 128
     
     # Wandb
