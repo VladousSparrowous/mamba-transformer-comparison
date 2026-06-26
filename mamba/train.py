@@ -7,7 +7,7 @@ from transformers import get_cosine_schedule_with_warmup
 from tqdm import tqdm
 import wandb
 import os
-from mamba.mamba import Mamba, ModelArgs
+from mamba import Mamba, ModelArgs
 import gc
 
 class Trainer:
