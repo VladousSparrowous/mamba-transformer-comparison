@@ -98,7 +98,7 @@ def run_experiment(config, use_wandb=False):
 
 def run_comparison():
 
-
+    '''
     # Experiment 0:
     print("\n" + "="*50)
     print("Experiment 0: work or not")
@@ -138,7 +138,7 @@ def run_comparison():
     # Clear memory between experiments
     torch.cuda.empty_cache()
     gc.collect()
-    
+    '''
     # Experiment 2: Mamba with SPT
     print("\n" + "="*50)
     print("Experiment 2: Mamba with Self-Pretraining (SPT)")
@@ -158,9 +158,9 @@ def run_comparison():
     print("\n" + "="*50)
     print("RESULTS SUMMARY")
     print("="*50)
-    print(f"Mamba from scratch: {acc_scratch:.4f}")
+    # print(f"Mamba from scratch: {acc_scratch:.4f}")
     print(f"Mamba with SPT:     {acc_spt:.4f}")
-    print(f"Improvement:        {(acc_spt - acc_scratch)*100:.2f}%")
+    # print(f"Improvement:        {(acc_spt - acc_scratch)*100:.2f}%")
     print("="*50)
 
 if __name__ == "__main__":
