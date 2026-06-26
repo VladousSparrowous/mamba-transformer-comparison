@@ -7,7 +7,7 @@ from data_utils import LRATextDataset, LRATextDatasetSPT
 from train import Trainer
 from mamba import Mamba
 from torch.utils.data import DataLoader
-
+import gc
 
 def set_seed(seed=42):
     random.seed(seed)
@@ -22,11 +22,17 @@ def run_experiment(config, use_wandb=False):
         wandb.init(project="mamba-lra-experiment", config=config.__dict__)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
     
-    # Load data
+    # Clear cache before loading
+    torch.cuda.empty_cache()
+    gc.collect()
+    
+    # Load data with smaller batch size
     print("Loading datasets...")
     train_dataset = LRATextDataset("train", config.max_seq_len)
-    val_dataset = LRATextDataset("test", config.max_seq_len)  # Use test as validation for LRA
+    val_dataset = LRATextDataset("test", config.max_seq_len)
     
     # Update vocab_size
     config.vocab_size = train_dataset.vocab_size
@@ -35,19 +41,26 @@ def run_experiment(config, use_wandb=False):
         train_dataset,
         batch_size=config.batch_size,
         shuffle=True,
-        num_workers=4
+        num_workers=2,  # Reduced from 4
+        pin_memory=True
     )
     val_loader = DataLoader(
         val_dataset,
         batch_size=config.batch_size,
         shuffle=False,
-        num_workers=4
+        num_workers=2,
+        pin_memory=True
     )
     
-    # Initialize model
+    # Initialize model with smaller config
     print("Initializing model...")
     model_args = config.get_model_args()
     model = Mamba(model_args)
+    
+    # Print model size
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"Model parameters: {total_params:,}")
+    print(f"Model size: {total_params * 4 / 1024**2:.2f} MB (float32)")
     
     # Create trainer
     trainer = Trainer(model, config, device)
@@ -60,7 +73,8 @@ def run_experiment(config, use_wandb=False):
             spt_dataset,
             batch_size=config.batch_size,
             shuffle=True,
-            num_workers=4
+            num_workers=2,
+            pin_memory=True
         )
         trainer.pretrain(spt_loader)
     
@@ -72,20 +86,33 @@ def run_experiment(config, use_wandb=False):
         wandb.log({"final_test_acc": test_acc})
         wandb.finish()
     
+    # Clean up
+    torch.cuda.empty_cache()
+    gc.collect()
+    
     return test_acc
 
 def run_comparison():
     """Run comparison: from-scratch vs SPT for Mamba"""
     
-    # Experiment 1: Mamba from scratch
+    # Experiment 1: Mamba from scratch (smaller model)
     print("\n" + "="*50)
     print("Experiment 1: Mamba trained from scratch")
     print("="*50)
     config_from_scratch = ExperimentConfig(
         pretrain=False,
-        num_epochs=100
+        num_epochs=20,  # Reduced
+        d_model=64,
+        n_layer=2,
+        d_state=8,
+        batch_size=16,
+        max_seq_len=512
     )
     acc_scratch = run_experiment(config_from_scratch)
+    
+    # Clear memory between experiments
+    torch.cuda.empty_cache()
+    gc.collect()
     
     # Experiment 2: Mamba with SPT
     print("\n" + "="*50)
@@ -93,8 +120,13 @@ def run_comparison():
     print("="*50)
     config_spt = ExperimentConfig(
         pretrain=True,
-        pretrain_epochs=50,
-        num_epochs=100
+        pretrain_epochs=10,  # Reduced
+        num_epochs=20,  # Reduced
+        d_model=64,
+        n_layer=2,
+        d_state=8,
+        batch_size=16,
+        max_seq_len=512
     )
     acc_spt = run_experiment(config_spt)
     

@@ -8,6 +8,7 @@ from tqdm import tqdm
 import wandb
 import os
 from mamba import Mamba, ModelArgs
+import gc
 
 class Trainer:
     def __init__(self, model, config, device="cuda"):
@@ -21,6 +22,9 @@ class Trainer:
             weight_decay=config.weight_decay
         )
         
+        # Create classification head for finetuning
+        self.classification_head = nn.Linear(config.d_model, 2).to(device)
+        
     def pretrain(self, dataloader):
         """Self-pretraining with masked language modeling"""
         self.model.train()
@@ -32,16 +36,18 @@ class Trainer:
             num_training_steps=total_steps
         )
         
+        # Use gradient accumulation for memory efficiency
+        accumulation_steps = 2
+        
         for epoch in range(self.config.pretrain_epochs):
             total_loss = 0
             progress_bar = tqdm(dataloader, desc=f"SPT Epoch {epoch+1}")
+            self.optimizer.zero_grad()
             
-            for batch in progress_bar:
+            for step, batch in enumerate(progress_bar):
                 inputs, labels = batch
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
-                
-                self.optimizer.zero_grad()
                 
                 # Forward pass
                 logits = self.model(inputs)
@@ -53,19 +59,31 @@ class Trainer:
                     ignore_index=-100
                 )
                 
+                loss = loss / accumulation_steps
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-                self.optimizer.step()
-                scheduler.step()
                 
-                total_loss += loss.item()
-                progress_bar.set_postfix({"loss": loss.item()})
+                if (step + 1) % accumulation_steps == 0:
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                    self.optimizer.step()
+                    scheduler.step()
+                    self.optimizer.zero_grad()
+                
+                total_loss += loss.item() * accumulation_steps
+                progress_bar.set_postfix({"loss": loss.item() * accumulation_steps})
+                
+                # Clear cache periodically
+                if step % 50 == 0:
+                    torch.cuda.empty_cache()
             
             avg_loss = total_loss / len(dataloader)
             print(f"SPT Epoch {epoch+1}: Avg Loss = {avg_loss:.4f}")
             
             if self.config.use_wandb:
                 wandb.log({"spt_loss": avg_loss, "spt_epoch": epoch})
+            
+            # Clear cache after epoch
+            torch.cuda.empty_cache()
+            gc.collect()
     
     def finetune(self, train_loader, val_loader, test_loader=None):
         """Fine-tune for classification"""
@@ -79,11 +97,11 @@ class Trainer:
         )
         
         best_val_acc = 0
-        patience = 10
+        patience = 5
         patience_counter = 0
         
-        # Create a classification head for finetuning
-        self.classification_head = nn.Linear(self.config.d_model, 2).to(self.device)
+        # Use gradient accumulation for memory efficiency
+        accumulation_steps = 2
         
         for epoch in range(self.config.num_epochs):
             # Training
@@ -93,12 +111,12 @@ class Trainer:
             train_total = 0
             
             progress_bar = tqdm(train_loader, desc=f"Train Epoch {epoch+1}")
-            for batch in progress_bar:
+            self.optimizer.zero_grad()
+            
+            for step, batch in enumerate(progress_bar):
                 inputs, labels = batch
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
-                
-                self.optimizer.zero_grad()
                 
                 # Get embeddings from the model
                 x = self.model.embedding(inputs)
@@ -111,20 +129,28 @@ class Trainer:
                 logits = self.classification_head(pooled)  # (batch, 2)
                 
                 loss = F.cross_entropy(logits, labels)
+                loss = loss / accumulation_steps
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-                self.optimizer.step()
-                scheduler.step()
                 
-                train_loss += loss.item()
+                if (step + 1) % accumulation_steps == 0:
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                    self.optimizer.step()
+                    scheduler.step()
+                    self.optimizer.zero_grad()
+                
+                train_loss += loss.item() * accumulation_steps
                 pred = logits.argmax(dim=1)
                 train_correct += (pred == labels).sum().item()
                 train_total += labels.size(0)
                 
                 progress_bar.set_postfix({
-                    "loss": loss.item(),
+                    "loss": loss.item() * accumulation_steps,
                     "acc": train_correct / train_total
                 })
+                
+                # Clear cache periodically
+                if step % 50 == 0:
+                    torch.cuda.empty_cache()
             
             train_acc = train_correct / train_total
             train_loss = train_loss / len(train_loader)
@@ -153,9 +179,14 @@ class Trainer:
                 if patience_counter >= patience:
                     print(f"Early stopping at epoch {epoch+1}")
                     break
+            
+            # Clear cache after epoch
+            torch.cuda.empty_cache()
+            gc.collect()
         
         # Load best model
-        self.model.load_state_dict(torch.load("best_model.pt"))
+        if os.path.exists("best_model.pt"):
+            self.model.load_state_dict(torch.load("best_model.pt"))
         
         # Test
         if test_loader:
@@ -164,10 +195,11 @@ class Trainer:
             return test_acc
         
         return best_val_acc
-
+    
     def evaluate(self, dataloader):
         """Evaluate the model"""
         self.model.eval()
+        self.classification_head.eval()
         correct = 0
         total = 0
         
@@ -190,5 +222,8 @@ class Trainer:
                 pred = logits.argmax(dim=1)
                 correct += (pred == labels).sum().item()
                 total += labels.size(0)
+                
+                # Clear cache
+                torch.cuda.empty_cache()
         
         return correct / total
