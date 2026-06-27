@@ -275,6 +275,8 @@ class Mamba3(nn.Module):
             args.num_rope_angles  # angles
         )
         self.in_proj = nn.Linear(args.d_model, d_in_proj, bias=False, device=device)
+
+        self.A_floor = args.A_floor
         
         # dt_bias
         _dt = torch.exp(
