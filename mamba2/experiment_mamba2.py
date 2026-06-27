@@ -108,11 +108,11 @@ def run_comparison():
         pretrain_epochs=2,  # Reduced
         num_epochs=3,  # Reduced
         d_model=64,
-        n_layer=1,
+        n_layer=2,
         d_state=8,
         batch_size=16,
-        max_seq_len=512,
-        headdim=32,
+        max_seq_len=1024,
+        headdim=64,
         chunk_size=32
     )
     acc_spt = run_experiment(config_spt)

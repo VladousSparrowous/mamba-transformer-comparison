@@ -126,8 +126,10 @@ def run_comparison_transformer():
         num_epochs=3,
         d_model=64,
         n_layer=2,
+        heads=4,
+        dim_head=64,
         batch_size=16,
-        max_seq_len=512
+        max_seq_len=1024
     )
     acc_spt = run_transformer_experiment(config_spt)
     
