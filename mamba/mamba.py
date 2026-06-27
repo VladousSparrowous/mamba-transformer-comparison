@@ -283,19 +283,22 @@ class MambaBlock(nn.Module):
         Возвращает:
             y: (batch, seqlen, d_in)
         """
-        # Переставляем оси для соответствия сигнатуре selective_scan_fn:
-        # u, delta: (batch, d_in, seqlen)
+        # Переставляем оси для u и delta: (batch, d_in, seqlen)
         u = u.permute(0, 2, 1).contiguous()
         delta = delta.permute(0, 2, 1).contiguous()
-        
-        # Вызываем оптимизированную функцию
+
+        # B и C: (batch, seqlen, state_dim) -> (batch, state_dim, seqlen) -> (batch, 1, state_dim, seqlen)
+        B = B.permute(0, 2, 1).contiguous().unsqueeze(1)  # (batch, 1, state_dim, seqlen)
+        C = C.permute(0, 2, 1).contiguous().unsqueeze(1)  # (batch, 1, state_dim, seqlen)
+
+        # Вызов оптимизированной функции
         y = selective_scan_fn(
             u, delta, A, B, C,
-            D=D,                # передаём D для автоматического добавления
-            delta_softplus=False,  # мы уже применили softplus до вызова
+            D=D,                     # добавляем D (вектор)
+            delta_softplus=False,    # softplus уже применён до вызова
             return_last_state=False
         )
-        
+
         # Возвращаем размерность (batch, seqlen, d_in)
         return y.permute(0, 2, 1).contiguous()
 
