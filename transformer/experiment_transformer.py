@@ -124,10 +124,10 @@ def run_comparison_transformer():
         pretrain=True,
         pretrain_epochs=2,
         num_epochs=3,
-        d_model=64,
-        n_layer=2,
-        heads=1,
-        dim_head=64,
+        d_model=32,
+        n_layer=1,
+        heads=2,
+        dim_head=16,
         batch_size=16,
         max_seq_len=4096
     )

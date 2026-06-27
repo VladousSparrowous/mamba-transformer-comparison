@@ -270,64 +270,68 @@ class MambaBlock(nn.Module):
         return y
 
     
-    def selective_scan(self, u, delta, A, B, C, D):
-        """Does selective scan algorithm. See:
-            - Section 2 State Space Models in the Mamba paper [1]
-            - Algorithm 2 in Section 3.2 in the Mamba paper [1]
-            - run_SSM(A, B, C, u) in The Annotated S4 [2]
-
-        This is the classic discrete state space formula:
-            x(t + 1) = Ax(t) + Bu(t)
-            y(t)     = Cx(t) + Du(t)
-        except B and C (and the step size delta, which is used for discretization) are dependent on the input x(t).
-    
-        Args:
-            u: shape (b, l, d_in)    (See Glossary at top for definitions of b, l, d_in, n...)
-            delta: shape (b, l, d_in)
-            A: shape (d_in, n)
-            B: shape (b, l, n)
-            C: shape (b, l, n)
-            D: shape (d_in,)
-    
-        Returns:
-            output: shape (b, l, d_in)
-    
-        Official Implementation:
-            selective_scan_ref(), https://github.com/state-spaces/mamba/blob/main/mamba_ssm/ops/selective_scan_interface.py#L86
-            Note: I refactored some parts out of `selective_scan_ref` out, so the functionality doesn't match exactly.
-            
+    def selective_scan_vectorized_stable(self, u, delta, A, B, C, D):
+        """
+        Более стабильная векторизованная версия.
+        Использует подход с "ассоциативным сканированием" через параллельный префикс.
         """
         (b, l, d_in) = u.shape
         n = A.shape[1]
         
-        # Discretize continuous parameters (A, B)
-        # - A is discretized using zero-order hold (ZOH) discretization (see Section 2 Equation 4 in the Mamba paper [1])
-        # - B is discretized using a simplified Euler discretization instead of ZOH. From a discussion with authors:
-        #   "A is the more important term and the performance doesn't change much with the simplification on B"
+        # Предварительные вычисления
         deltaA = torch.exp(einsum(delta, A, 'b l d_in, d_in n -> b l d_in n'))
         deltaB_u = einsum(delta, B, u, 'b l d_in, b l n, b l d_in -> b l d_in n')
         
-        # Perform selective scan
-        x = torch.zeros((b, d_in, n), device=deltaA.device)
-        ys = []    
+        # Переставляем для удобства: (b, l, d_in, n) -> (b, d_in, l, n)
+        deltaA = deltaA.permute(0, 2, 1, 3)
+        deltaB_u = deltaB_u.permute(0, 2, 1, 3)
         
-        for i in range(l):
-            # Safety check: ensure dimensions match before multiplication
-            # deltaA[:, i] shape: (b, d_in, n)
-            # x shape: (b, d_in, n)
-            # deltaB_u[:, i] shape: (b, d_in, n)
-            x = deltaA[:, i] * x + deltaB_u[:, i]
+        # Используем рекурсивный параллельный префикс (ассоциативный сканер)
+        # Это более численно стабильно, чем просто cumsum
+        def associative_scan(deltaA, deltaB_u):
+            """
+            Ассоциативный сканер для пары (a, b) с операцией:
+            (a1, b1) * (a2, b2) = (a1*a2, a1*b2 + b1)
+            """
+            batch_size, d_in, seq_len, n = deltaA.shape
             
-            # Ensure C[:, i, :] has correct shape: (b, n)
-            c_i = C[:, i, :]  # shape: (b, n)
-            # x shape: (b, d_in, n)
-            # We need to contract the n dimension
-            y = torch.einsum('bdn,bn->bd', x, c_i)  # shape: (b, d_in)
-            ys.append(y)
+            # Инициализация
+            a = deltaA  # (b, d_in, l, n)
+            b = deltaB_u  # (b, d_in, l, n)
+            
+            # Пошаговое увеличение размера блока
+            step = 1
+            while step < seq_len:
+                # Сливаем элементы через операцию
+                a_even = a[:, :, step::2*step, :]  # элементы с четными индексами
+                a_odd = a[:, :, :-step:2*step, :]  # элементы с нечетными индексами
+                
+                b_even = b[:, :, step::2*step, :]
+                b_odd = b[:, :, :-step:2*step, :]
+                
+                # Обновляем нечетные элементы: (a1*a2, a1*b2 + b1)
+                a_new = a_even * a_odd
+                b_new = a_even * b_odd + b_even
+                
+                # Записываем обратно
+                a[:, :, step::2*step, :] = a_new
+                b[:, :, step::2*step, :] = b_new
+                
+                step *= 2
+            
+            return b  # возвращаем b, которое содержит x
+                
+        x = associative_scan(deltaA, deltaB_u)  # (b, d_in, l, n)
         
-        y = torch.stack(ys, dim=1)  # shape (b, l, d_in)
+        # Переставляем обратно: (b, d_in, l, n) -> (b, l, d_in, n)
+        x = x.permute(0, 2, 1, 3)
+        
+        # Вычисляем y = C * x
+        C_expanded = C.unsqueeze(2)  # (b, l, 1, n)
+        y = torch.sum(x * C_expanded, dim=3)  # (b, l, d_in)
+        
         y = y + u * D
-    
+        
         return y
 
 
