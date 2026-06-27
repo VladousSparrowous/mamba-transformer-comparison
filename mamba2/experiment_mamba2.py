@@ -109,7 +109,7 @@ def run_comparison():
         num_epochs=10,  # Reduced
         d_model=64,
         n_layer=4,
-        d_state=8,
+        d_state=16,
         batch_size=16,
         max_seq_len=4096,
         headdim=64,
