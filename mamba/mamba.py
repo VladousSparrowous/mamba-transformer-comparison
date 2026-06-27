@@ -272,66 +272,49 @@ class MambaBlock(nn.Module):
     
     def selective_scan(self, u, delta, A, B, C, D):
         """
-        Более стабильная векторизованная версия.
-        Использует подход с "ассоциативным сканированием" через параллельный префикс.
+        Последовательная реализация SSM (без inplace).
+        u:  (b, l, d_in)
+        delta: (b, l, d_in)
+        A:    (d_in, n)
+        B:    (b, l, n)
+        C:    (b, l, n)
+        D:    (d_in,)
         """
-        (b, l, d_in) = u.shape
+        b, l, d_in = u.shape
         n = A.shape[1]
-        
-        # Предварительные вычисления
-        deltaA = torch.exp(einsum(delta, A, 'b l d_in, d_in n -> b l d_in n'))
-        deltaB_u = einsum(delta, B, u, 'b l d_in, b l n, b l d_in -> b l d_in n')
-        
-        # Переставляем для удобства: (b, l, d_in, n) -> (b, d_in, l, n)
-        deltaA = deltaA.permute(0, 2, 1, 3)
-        deltaB_u = deltaB_u.permute(0, 2, 1, 3)
-        
-        # Используем рекурсивный параллельный префикс (ассоциативный сканер)
-        # Это более численно стабильно, чем просто cumsum
-        def associative_scan(deltaA, deltaB_u):
-            """
-            Ассоциативный сканер для пары (a, b) с операцией:
-            (a1, b1) * (a2, b2) = (a1*a2, a1*b2 + b1)
-            """
-            batch_size, d_in, seq_len, n = deltaA.shape
-            
-            # Инициализация
-            a = deltaA  # (b, d_in, l, n)
-            b = deltaB_u  # (b, d_in, l, n)
-            
-            # Пошаговое увеличение размера блока
-            step = 1
-            while step < seq_len:
-                # Сливаем элементы через операцию
-                a_even = a[:, :, step::2*step, :]  # элементы с четными индексами
-                a_odd = a[:, :, :-step:2*step, :]  # элементы с нечетными индексами
-                
-                b_even = b[:, :, step::2*step, :]
-                b_odd = b[:, :, :-step:2*step, :]
-                
-                # Обновляем нечетные элементы: (a1*a2, a1*b2 + b1)
-                a_new = a_even * a_odd
-                b_new = a_even * b_odd + b_even
-                
-                # Записываем обратно
-                a[:, :, step::2*step, :] = a_new
-                b[:, :, step::2*step, :] = b_new
-                
-                step *= 2
-            
-            return b  # возвращаем b, которое содержит x
-                
-        x = associative_scan(deltaA, deltaB_u)  # (b, d_in, l, n)
-        
-        # Переставляем обратно: (b, d_in, l, n) -> (b, l, d_in, n)
-        x = x.permute(0, 2, 1, 3)
-        
-        # Вычисляем y = C * x
-        C_expanded = C.unsqueeze(2)  # (b, l, 1, n)
-        y = torch.sum(x * C_expanded, dim=3)  # (b, l, d_in)
-        
-        y = y + u * D
-        
+        device = u.device
+        dtype = u.dtype
+
+        # Начальное состояние h = 0
+        h = torch.zeros(b, d_in, n, device=device, dtype=dtype)
+        outputs = []
+
+        for t in range(l):
+            # Текущий временной шаг
+            u_t = u[:, t, :]                # (b, d_in)
+            delta_t = delta[:, t, :]        # (b, d_in)
+            B_t = B[:, t, :]                # (b, n)
+            C_t = C[:, t, :]                # (b, n)
+
+            # Дискретизация A: A_bar = exp(delta_t * A)
+            # delta_t: (b, d_in) -> (b, d_in, 1) для broadcasting с A (d_in, n)
+            delta_t_exp = delta_t.unsqueeze(-1)   # (b, d_in, 1)
+            A_bar = torch.exp(delta_t_exp * A)    # (b, d_in, n)
+
+            # B * u_t: (b, d_in, n)
+            Bu = u_t.unsqueeze(-1) * B_t.unsqueeze(1)   # (b, d_in, n)
+
+            # Обновление состояния: h = A_bar * h + Bu
+            h = A_bar * h + Bu
+
+            # Вычисление выхода: y_t = C_t * h + D * u_t
+            # C_t: (b, n) -> (b, 1, n) для broadcasting с h (b, d_in, n)
+            y_t = torch.sum(h * C_t.unsqueeze(1), dim=-1) + D.unsqueeze(0) * u_t  # (b, d_in)
+
+            outputs.append(y_t)
+
+        # Собираем выходы по временной оси
+        y = torch.stack(outputs, dim=1)   # (b, l, d_in)
         return y
 
 
