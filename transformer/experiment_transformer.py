@@ -130,6 +130,30 @@ def run_comparison_transformer():
         dim_head=16,
         batch_size=16,
         max_seq_len=4096,
+        local_attn_window_size=32,
+        use_pos_emb=False
+    )
+    acc_spt = run_transformer_experiment(config_spt)
+    
+    print("\n" + "="*50)
+    print("RESULTS SUMMARY")
+    print("="*50)
+    print(f"Transformer without pos_emb with SPT:    {acc_spt:.4f}")
+    print("="*50)
+
+    print("\n" + "="*50)
+    print("Experiment: Transformer without pos_emb with Self-Pretraining (SPT)")
+    print("="*50)
+    config_spt = ExperimentConfig(
+        pretrain=True,
+        pretrain_epochs=5,
+        num_epochs=10,
+        d_model=64,
+        n_layer=4,
+        heads=4,
+        dim_head=16,
+        batch_size=16,
+        max_seq_len=4096,
         local_attn_window_size=64,
         use_pos_emb=False
     )
@@ -188,7 +212,7 @@ def run_comparison_transformer():
     print("="*50)
     print(f"Transformer without pos_emb with SPT:    {acc_spt:.4f}")
     print("="*50)
-    '''
+    
     print("\n" + "="*50)
     print("Experiment: Transformer with Self-Pretraining (SPT)")
     print("="*50)
@@ -211,7 +235,7 @@ def run_comparison_transformer():
     print("="*50)
     print(f"Transformer with SPT:    {acc_spt:.4f}")
     print("="*50)
-    '''
+    
 
 if __name__ == "__main__":
     run_comparison_transformer()

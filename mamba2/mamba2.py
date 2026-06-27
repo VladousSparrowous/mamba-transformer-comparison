@@ -375,7 +375,7 @@ def ssd(x, A, B, C, chunk_size, initial_states=None, device: Device = None):
 
     # Rearrange into chunks
     # Step 1, 2 and 4 of SSD can be computed in parallel for each chunk across devices (sequence parallel)
-    # This is not implemented and left as an exercise for the reader 😜
+    # This is not implemented and left as an exercise for the reader 
     x, A, B, C = [
         rearrange(m, "b (c l) ... -> b c l ...", l=chunk_size) for m in (x, A, B, C)
     ]
