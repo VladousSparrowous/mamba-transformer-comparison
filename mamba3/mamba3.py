@@ -415,6 +415,7 @@ class Mamba3(nn.Module):
             # Если return_final_states=False, y - единственный выход
             # y имеет форму (batch, seqlen, nheads, headdim)
 
+
         # 4. Постобработка
         # y уже имеет форму (batch, seqlen, nheads, headdim) от ядра
         # Если ядро не использовало Z, оно вернёт y без gating.
