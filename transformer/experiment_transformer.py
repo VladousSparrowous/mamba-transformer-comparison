@@ -122,8 +122,8 @@ def run_comparison_transformer():
     print("="*50)
     config_spt = ExperimentConfig(
         pretrain=True,
-        pretrain_epochs=3,
-        num_epochs=5,
+        pretrain_epochs=5,
+        num_epochs=10,
         d_model=32,
         n_layer=2,
         heads=1,

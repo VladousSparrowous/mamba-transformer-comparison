@@ -104,8 +104,8 @@ def run_comparison():
     print("="*50)
     config_spt = ExperimentConfig(
         pretrain=True,
-        pretrain_epochs=3,  # Reduced
-        num_epochs=5,  # Reduced
+        pretrain_epochs=5,  # Reduced
+        num_epochs=10,  # Reduced
         d_model=64,
         n_layer=4,
         d_state=8,
