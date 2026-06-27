@@ -98,7 +98,7 @@ def run_comparison():
         num_epochs=10,
         d_model=64,
         n_layer=4,
-        d_state=8,
+        d_state=16,
         expand=2,
         headdim=64,
         chunk_size=32,
