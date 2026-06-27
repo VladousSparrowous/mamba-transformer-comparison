@@ -30,7 +30,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from dataclasses import dataclass
 from einops import rearrange, repeat, einsum
-
+from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
 
 import os
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
@@ -272,51 +272,32 @@ class MambaBlock(nn.Module):
     
     def selective_scan(self, u, delta, A, B, C, D):
         """
-        Последовательная реализация SSM (без inplace).
-        u:  (b, l, d_in)
-        delta: (b, l, d_in)
-        A:    (d_in, n)
-        B:    (b, l, n)
-        C:    (b, l, n)
-        D:    (d_in,)
+        Использует быструю CUDA-реализацию из mamba_ssm.
+        Ожидает:
+            u: (batch, seqlen, d_in)
+            delta: (batch, seqlen, d_in)
+            A: (d_in, state_dim)
+            B: (batch, seqlen, state_dim)
+            C: (batch, seqlen, state_dim)
+            D: (d_in,)
+        Возвращает:
+            y: (batch, seqlen, d_in)
         """
-        b, l, d_in = u.shape
-        n = A.shape[1]
-        device = u.device
-        dtype = u.dtype
-
-        # Начальное состояние h = 0
-        h = torch.zeros(b, d_in, n, device=device, dtype=dtype)
-        outputs = []
-
-        for t in range(l):
-            # Текущий временной шаг
-            u_t = u[:, t, :]                # (b, d_in)
-            delta_t = delta[:, t, :]        # (b, d_in)
-            B_t = B[:, t, :]                # (b, n)
-            C_t = C[:, t, :]                # (b, n)
-
-            # Дискретизация A: A_bar = exp(delta_t * A)
-            # delta_t: (b, d_in) -> (b, d_in, 1) для broadcasting с A (d_in, n)
-            delta_t_exp = delta_t.unsqueeze(-1)   # (b, d_in, 1)
-            A_bar = torch.exp(delta_t_exp * A)    # (b, d_in, n)
-
-            # B * u_t: (b, d_in, n)
-            Bu = u_t.unsqueeze(-1) * B_t.unsqueeze(1)   # (b, d_in, n)
-
-            # Обновление состояния: h = A_bar * h + Bu
-            h = A_bar * h + Bu
-
-            # Вычисление выхода: y_t = C_t * h + D * u_t
-            # C_t: (b, n) -> (b, 1, n) для broadcasting с h (b, d_in, n)
-            y_t = torch.sum(h * C_t.unsqueeze(1), dim=-1) + D.unsqueeze(0) * u_t  # (b, d_in)
-
-            outputs.append(y_t)
-
-        # Собираем выходы по временной оси
-        y = torch.stack(outputs, dim=1)   # (b, l, d_in)
-        return y
-
+        # Переставляем оси для соответствия сигнатуре selective_scan_fn:
+        # u, delta: (batch, d_in, seqlen)
+        u = u.permute(0, 2, 1).contiguous()
+        delta = delta.permute(0, 2, 1).contiguous()
+        
+        # Вызываем оптимизированную функцию
+        y = selective_scan_fn(
+            u, delta, A, B, C,
+            D=D,                # передаём D для автоматического добавления
+            delta_softplus=False,  # мы уже применили softplus до вызова
+            return_last_state=False
+        )
+        
+        # Возвращаем размерность (batch, seqlen, d_in)
+        return y.permute(0, 2, 1).contiguous()
 
 class RMSNorm(nn.Module):
     def __init__(self,
