@@ -7,7 +7,7 @@
 This project evaluates State Space Models (SSM) against Transformer architectures on the challenging task of classifying long text sequences (up to 4096 characters) at the character/byte level using IMDb reviews. The study follows the **Self-Pretraining (SPT)** approach [2] for fair comparison, training all models from scratch without external data.
 
 ### Key Findings
-- **Mamba-1** achieves **87.56%** validation accuracy, surpassing Transformer with local attention (window size 32)
+- **Mamba-1** achieves **87.56%** validation accuracy, surpassing Transformer with local attention (window size 64)
 - All Mamba models are comparable to Transformer in quality while being **~3x faster** on inference
 - Mamba-3 demonstrates the fastest inference speed among all tested models
 
