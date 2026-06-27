@@ -270,7 +270,7 @@ class MambaBlock(nn.Module):
         return y
 
     
-    def selective_scan_vectorized_stable(self, u, delta, A, B, C, D):
+    def selective_scan(self, u, delta, A, B, C, D):
         """
         Более стабильная векторизованная версия.
         Использует подход с "ассоциативным сканированием" через параллельный префикс.
