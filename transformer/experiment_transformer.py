@@ -129,7 +129,7 @@ def run_comparison_transformer():
         heads=4,
         dim_head=64,
         batch_size=16,
-        max_seq_len=1024
+        max_seq_len=4096
     )
     acc_spt = run_transformer_experiment(config_spt)
     

@@ -110,7 +110,7 @@ def run_comparison():
         n_layer=2,
         d_state=8,
         batch_size=16,
-        max_seq_len=1024
+        max_seq_len=4096
     )
     acc_spt = run_experiment(config_spt)
     
