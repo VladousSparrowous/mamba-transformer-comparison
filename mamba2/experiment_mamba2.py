@@ -108,7 +108,7 @@ def run_comparison():
         pretrain_epochs=2,  # Reduced
         num_epochs=3,  # Reduced
         d_model=64,
-        n_layer=2,
+        n_layer=4,
         d_state=8,
         batch_size=16,
         max_seq_len=4096,

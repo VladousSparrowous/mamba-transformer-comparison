@@ -125,7 +125,7 @@ def run_comparison_transformer():
         pretrain_epochs=2,
         num_epochs=3,
         d_model=16,
-        n_layer=1,
+        n_layer=2,
         heads=1,
         dim_head=16,
         batch_size=16,

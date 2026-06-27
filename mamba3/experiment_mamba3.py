@@ -97,7 +97,7 @@ def run_comparison():
         pretrain_epochs=2,
         num_epochs=3,
         d_model=64,
-        n_layer=2,
+        n_layer=4,
         d_state=8,
         expand=2,
         headdim=64,
