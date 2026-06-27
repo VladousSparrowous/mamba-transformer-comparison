@@ -1,4 +1,3 @@
-# config_transformer.py (optional - if you want separate config for transformer)
 from dataclasses import dataclass
 
 @dataclass
@@ -11,6 +10,7 @@ class ExperimentConfig:
     heads: int = 8
     dim_head: int = 64
     local_attn_window_size: int = 64
+    use_pos_emb: bool = True
     
     # Training parameters
     batch_size: int = 8

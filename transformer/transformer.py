@@ -171,11 +171,15 @@ class LocalTransformer(nn.Module):
         use_xpos = False,
         xpos_scale_base = None,
         use_dynamic_pos_bias = False,
+        use_pos_emb = True,
         **kwargs
     ):
         super().__init__()
         self.token_emb = nn.Embedding(num_tokens, dim)
-        self.pos_emb = nn.Embedding(max_seq_len, dim)
+        if use_pos_emb:
+            self.pos_emb = nn.Embedding(max_seq_len, dim)
+
+        self.use_pos_emb = use_pos_emb
 
         self.max_seq_len = max_seq_len
         self.layers = nn.ModuleList([])
@@ -229,7 +233,9 @@ class LocalTransformer(nn.Module):
         x = self.token_emb(x)
 
         assert n <= self.max_seq_len
-        x = x + self.pos_emb(torch.arange(n, device = device))
+        
+        if self.use_pos_emb:
+            x = x + self.pos_emb(torch.arange(n, device = device))
 
         # dynamic pos bias - fixed
         attn_bias = None

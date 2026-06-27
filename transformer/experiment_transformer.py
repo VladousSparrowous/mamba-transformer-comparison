@@ -67,7 +67,7 @@ def run_transformer_experiment(config, use_wandb=False):
         dim=config.d_model,
         depth=config.n_layer,
         causal=False,  # For classification we don't need causal
-        local_attn_window_size=32,
+        local_attn_window_size=config.local_attn_window_size,
         dim_head=config.dim_head,
         heads=config.heads,
         ff_mult=config.expand,
@@ -76,7 +76,8 @@ def run_transformer_experiment(config, use_wandb=False):
         ignore_index=-100,
         use_xpos=True,
         xpos_scale_base=128,
-        use_dynamic_pos_bias=False
+        use_dynamic_pos_bias=False,
+        use_pos_emb=config.use_pos_emb
     )
     
     # Print model size
@@ -116,7 +117,78 @@ def run_transformer_experiment(config, use_wandb=False):
 
 def run_comparison_transformer():
 
+    print("\n" + "="*50)
+    print("Experiment: Transformer without pos_emb with Self-Pretraining (SPT)")
+    print("="*50)
+    config_spt = ExperimentConfig(
+        pretrain=True,
+        pretrain_epochs=5,
+        num_epochs=10,
+        d_model=64,
+        n_layer=4,
+        heads=4,
+        dim_head=16,
+        batch_size=16,
+        max_seq_len=4096,
+        local_attn_window_size=64,
+        use_pos_emb=False
+    )
+    acc_spt = run_transformer_experiment(config_spt)
     
+    print("\n" + "="*50)
+    print("RESULTS SUMMARY")
+    print("="*50)
+    print(f"Transformer without pos_emb with SPT:    {acc_spt:.4f}")
+    print("="*50)
+
+    print("\n" + "="*50)
+    print("Experiment: Transformer without pos_emb with Self-Pretraining (SPT)")
+    print("="*50)
+    config_spt = ExperimentConfig(
+        pretrain=True,
+        pretrain_epochs=5,
+        num_epochs=10,
+        d_model=64,
+        n_layer=4,
+        heads=4,
+        dim_head=16,
+        batch_size=16,
+        max_seq_len=4096,
+        local_attn_window_size=128,
+        use_pos_emb=False
+    )
+    acc_spt = run_transformer_experiment(config_spt)
+    
+    print("\n" + "="*50)
+    print("RESULTS SUMMARY")
+    print("="*50)
+    print(f"Transformer without pos_emb with SPT:    {acc_spt:.4f}")
+    print("="*50)
+
+    print("\n" + "="*50)
+    print("Experiment: Transformer without pos_emb with Self-Pretraining (SPT)")
+    print("="*50)
+    config_spt = ExperimentConfig(
+        pretrain=True,
+        pretrain_epochs=5,
+        num_epochs=10,
+        d_model=64,
+        n_layer=4,
+        heads=4,
+        dim_head=16,
+        batch_size=16,
+        max_seq_len=4096,
+        local_attn_window_size=256,
+        use_pos_emb=False
+    )
+    acc_spt = run_transformer_experiment(config_spt)
+    
+    print("\n" + "="*50)
+    print("RESULTS SUMMARY")
+    print("="*50)
+    print(f"Transformer without pos_emb with SPT:    {acc_spt:.4f}")
+    print("="*50)
+    '''
     print("\n" + "="*50)
     print("Experiment: Transformer with Self-Pretraining (SPT)")
     print("="*50)
@@ -129,7 +201,8 @@ def run_comparison_transformer():
         heads=1,
         dim_head=16,
         batch_size=16,
-        max_seq_len=4096
+        max_seq_len=4096,
+        use_pos_emb=True
     )
     acc_spt = run_transformer_experiment(config_spt)
     
@@ -138,6 +211,7 @@ def run_comparison_transformer():
     print("="*50)
     print(f"Transformer with SPT:    {acc_spt:.4f}")
     print("="*50)
+    '''
 
 if __name__ == "__main__":
     run_comparison_transformer()
