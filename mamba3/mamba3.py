@@ -15,6 +15,7 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
 from torch import LongTensor, Tensor, nn
+from mamba_ssm.ops.triton.mamba3.mamba3_siso_combined import mamba3_siso_combined
 
 Device: TypeAlias = str | torch.device | None
 
@@ -318,98 +319,126 @@ class Mamba3(nn.Module):
 
     def forward(self, u: Tensor, h: InferenceCache | None = None) -> tuple[Tensor, InferenceCache]:
         """
-        Прямой проход.
-        
-        Args:
-            u: (batch, seqlen, d_model) вход
-            h: кэш для инференса
-            
-        Returns:
-            y: (batch, seqlen, d_model)
-            h: обновленный кэш
+        Прямой проход с использованием оригинального ядра mamba3_siso_combined.
         """
-        if h:
-            return self.step(u, h)
-        
         batch, seqlen, _ = u.shape
-        
-        # In-proj
-        zxBCdtAtrap = self.in_proj(u)
-        z, x, B, C, dt, A, trap, angles = torch.split(
+
+        if h is not None:
+            # Если передан кэш, используем пошаговый режим (step)
+            return self.step(u, h)
+
+        # 1. In-projection
+        zxBCdtAtrap = self.in_proj(u)  # (batch, seqlen, d_in_proj)
+        z, x, B, C, dd_dt, dd_A, trap, angles = torch.split(
             zxBCdtAtrap,
             [
-                self.args.d_inner,
-                self.args.d_inner,
-                self.args.d_state * self.num_bc_heads,
-                self.args.d_state * self.num_bc_heads,
-                self.args.nheads,
-                self.args.nheads,
-                self.args.nheads,
-                self.args.num_rope_angles,
+                self.args.d_inner,                          # z
+                self.args.d_inner,                          # x
+                self.args.d_state * self.num_bc_heads,      # B
+                self.args.d_state * self.num_bc_heads,      # C
+                self.args.nheads,                           # dt
+                self.args.nheads,                           # A
+                self.args.nheads,                           # trap
+                self.args.num_rope_angles,                  # angles
             ],
             dim=-1,
         )
-        
-        # Размерности
+
+        # 2. Преобразование размерностей для ядра
+        # Ядро ожидает:
+        #   Q = C: (batch, seqlen, nheads, d_state)  (но у нас headdim?)
+        #   K = B: (batch, seqlen, nheads, d_state)
+        #   V = x: (batch, seqlen, nheads, headdim)
+        #   ADT: (batch, nheads, seqlen)   (A*dt)
+        #   DT:  (batch, nheads, seqlen)   (dt)
+        #   Trap: (batch, nheads, seqlen)
+        #   Z: (batch, seqlen, nheads, headdim) - для gating
+        #   D: (nheads,)
+        #   Q_bias, K_bias: (nheads, d_state)
+        #   Angles: (batch, seqlen, nheads, num_rope_angles) или (batch, seqlen, num_rope_angles)
+
+        # Reshape
         z = rearrange(z, "b l (h p) -> b l h p", p=self.args.headdim)
         x = rearrange(x, "b l (h p) -> b l h p", p=self.args.headdim)
         B = rearrange(B, "b l (g n) -> b l g n", g=self.num_bc_heads)
         C = rearrange(C, "b l (g n) -> b l g n", g=self.num_bc_heads)
-        
-        # Расширяем до nheads если ngroups < nheads
+
+        # Расширяем B и C до nheads, если ngroups < nheads
         if self.num_bc_heads < self.args.nheads:
             B = B.expand(-1, -1, self.args.nheads, -1)
             C = C.expand(-1, -1, self.args.nheads, -1)
-        
-        # DT
-        dt = F.softplus(dt + self.dt_bias)  # (batch, seqlen, nheads)
-        
-        # Применяем RMS Norm к B и C
+        else:
+            B = B.squeeze(2)   # если ngroups == nheads, убираем размерность группы
+            C = C.squeeze(2)
+
+        # Нормализация B и C
         B = self.B_norm(B)
         C = self.C_norm(C)
-        
-        # Добавляем biases
+
+        # Добавляем biases (с начальным значением 1)
         B = B + self.B_bias
         C = C + self.C_bias
-        
-        # Применяем RoPE
-        if angles is not None:
-            B, C = apply_rotary_embedding(B, C, angles)
-        
-        # SSD с A, dt и trap
-        # A = heavy_tail_activation(A) уже внутри ssd_with_rope
-        y, ssm_state = ssd_with_rope(
-            x * dt.unsqueeze(-1),  # x * dt
-            A,  # A
-            B,  # B
-            C,  # C
-            None,  # angles уже применены
-            None,  # biases уже применены
-            None,
-            self.args.chunk_size,
-            self.args.rotary_dim,
-            device=self.device,
+
+        # Вычисляем dt, A, trap
+        dt = F.softplus(dd_dt + self.dt_bias)          # (batch, seqlen, nheads)
+        A = -heavy_tail_activation(dd_A)               # (batch, seqlen, nheads)
+        A = torch.clamp(A, max=-self.A_floor)
+        trap = torch.sigmoid(trap)                     # (batch, seqlen, nheads)
+
+        # Перестановка для ядра: (batch, nheads, seqlen)
+        dt = rearrange(dt, "b l h -> b h l")
+        A = rearrange(A, "b l h -> b h l")
+        trap = rearrange(trap, "b l h -> b h l")
+        ADT = A * dt   # (batch, nheads, seqlen)
+
+        # Углы (angles) для RoPE: расширяем до nheads
+        angles = angles.unsqueeze(-2).expand(-1, -1, self.args.nheads, -1)  # (batch, seqlen, nheads, num_rope_angles)
+
+        # 3. Вызов оригинального ядра SISO
+        y = mamba3_siso_combined(
+            Q=C,                      # (batch, seqlen, nheads, d_state)
+            K=B,                      # (batch, seqlen, nheads, d_state)
+            V=x,                      # (batch, seqlen, nheads, headdim)
+            ADT=ADT,                  # (batch, nheads, seqlen)
+            DT=dt,                    # (batch, nheads, seqlen)
+            Trap=trap,                # (batch, nheads, seqlen)
+            Q_bias=self.C_bias,       # (nheads, d_state)
+            K_bias=self.B_bias,       # (nheads, d_state)
+            Angles=angles,            # (batch, seqlen, nheads, num_rope_angles)
+            D=self.D,                 # (nheads,)
+            Z=z,                      # (batch, seqlen, nheads, headdim) - для gating
+            chunk_size=self.args.chunk_size,
+            Input_States=None,        # для инференса
+            return_final_states=False,
+            cu_seqlens=None,
         )
-        
-        # D skip connection
-        y = y + x * self.D.unsqueeze(-1)
-        
-        # Выход
-        # Вместо rearrange используем reshape
-        y = y.reshape(batch, seqlen, -1)  # -> (batch, seqlen, d_inner)
-        z = z.reshape(batch, seqlen, -1)  # -> (batch, seqlen, d_inner)
-        y = self.norm(y, z)
-        y = self.out_proj(y)
-        
-        # Кэш
-        # Для упрощения не сохраняем conv_state в этом минимальном примере
-        angle_state = torch.zeros(batch, self.args.nheads, self.args.num_rope_angles, device=self.device)
+            # Если return_final_states=False, y - единственный выход
+            # y имеет форму (batch, seqlen, nheads, headdim)
+
+        # 4. Постобработка
+        # y уже имеет форму (batch, seqlen, nheads, headdim) от ядра
+        # Если ядро не использовало Z, оно вернёт y без gating.
+        # В нашем случае мы передали Z, и ядро применило gating внутри.
+        # В оригинале ядро возвращает y = y * silu(z) (если z передан) и затем применяет норму?
+        # В документации: если Z передан, ядро выполняет gate и norm (если outproj_norm_weight задан).
+        # Мы не используем fused norm, поэтому просто применяем свою норму после.
+
+        # Приводим к плоскому виду
+        y = rearrange(y, "b l h p -> b l (h p)")  # (batch, seqlen, d_inner)
+        z = rearrange(z, "b l h p -> b l (h p)")  # (batch, seqlen, d_inner)
+
+        # Применяем gating и норму (если ядро не сделало этого)
+        y = y * F.silu(z)          # gate
+        y = self.norm(y)           # RMSNorm
+        y = self.out_proj(y)       # (batch, seqlen, d_model)
+
+        # Создаём пустой кэш (для совместимости)
         h = InferenceCache(
             torch.zeros(batch, self.args.d_inner + 2 * self.args.d_state, self.args.d_conv, device=self.device),
-            ssm_state,
-            angle_state,
+            torch.zeros(batch, self.args.nheads, self.args.headdim, self.args.d_state, device=self.device),
+            torch.zeros(batch, self.args.nheads, self.args.num_rope_angles, device=self.device),
         )
-        
+
         return y, h
 
     def step(self, u: Tensor, h: InferenceCache) -> tuple[Tensor, InferenceCache]:

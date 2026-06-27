@@ -113,7 +113,7 @@ class Trainer:
                 
                 x = self.model.backbone.embedding(inputs)
                 for layer in self.model.backbone.layers:
-                    x, _ = layer.mixer(layer.norm(x), None)  # или x = layer.mixer(layer.norm(x))[0]
+                    x = x + layer.mixer(layer.norm(x), None)[0]  # или x = layer.mixer(layer.norm(x))[0]
                 x = self.model.backbone.norm_f(x)
                 
                 pooled = x.mean(dim=1)
@@ -196,7 +196,7 @@ class Trainer:
                 
                 x = self.model.backbone.embedding(inputs)
                 for layer in self.model.backbone.layers:
-                    x, _ = layer.mixer(layer.norm(x), None)
+                    x = x + layer.mixer(layer.norm(x), None)[0]
                 x = self.model.backbone.norm_f(x)
                 
                 pooled = x.mean(dim=1)
