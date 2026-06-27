@@ -68,14 +68,14 @@ def run_transformer_experiment(config, use_wandb=False):
         depth=config.n_layer,
         causal=False,  # For classification we don't need causal
         local_attn_window_size=config.max_seq_len,
-        dim_head=64,
-        heads=8,
+        dim_head=config.dim_head,
+        heads=config.heads,
         ff_mult=config.expand,
         attn_dropout=0.1,
         ff_dropout=0.1,
         ignore_index=-100,
         use_xpos=True,
-        xpos_scale_base=512,
+        xpos_scale_base=128,
         use_dynamic_pos_bias=False
     )
     
@@ -126,7 +126,7 @@ def run_comparison_transformer():
         num_epochs=3,
         d_model=64,
         n_layer=2,
-        heads=4,
+        heads=1,
         dim_head=64,
         batch_size=16,
         max_seq_len=4096
