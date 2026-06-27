@@ -67,7 +67,7 @@ def run_transformer_experiment(config, use_wandb=False):
         dim=config.d_model,
         depth=config.n_layer,
         causal=False,  # For classification we don't need causal
-        local_attn_window_size=config.max_seq_len,
+        local_attn_window_size=32,
         dim_head=config.dim_head,
         heads=config.heads,
         ff_mult=config.expand,
@@ -124,10 +124,10 @@ def run_comparison_transformer():
         pretrain=True,
         pretrain_epochs=2,
         num_epochs=3,
-        d_model=32,
-        n_layer=1,
-        heads=2,
-        dim_head=16,
+        d_model=64,
+        n_layer=2,
+        heads=1,
+        dim_head=64,
         batch_size=16,
         max_seq_len=4096
     )
