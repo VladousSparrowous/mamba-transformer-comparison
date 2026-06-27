@@ -15,7 +15,7 @@ class ExperimentConfig:
     
     # Training parameters
     batch_size: int = 8
-    learning_rate: float = 3e-4
+    learning_rate: float = 1e-3
     num_epochs: int = 10
     warmup_steps: int = 100
     weight_decay: float = 0.01
