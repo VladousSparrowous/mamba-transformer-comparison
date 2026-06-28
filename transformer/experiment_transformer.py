@@ -118,7 +118,7 @@ def run_transformer_experiment(config, use_wandb=False):
 def run_comparison_transformer():
 
     print("\n" + "="*50)
-    print("Experiment: Transformer without pos_emb with Self-Pretraining (SPT)")
+    print("Experiment: Transformer(window 32) without pos_emb with Self-Pretraining (SPT)")
     print("="*50)
     config_spt = ExperimentConfig(
         pretrain=True,
@@ -166,7 +166,7 @@ def run_comparison_transformer():
     print("="*50)
 
     print("\n" + "="*50)
-    print("Experiment: Transformer without pos_emb with Self-Pretraining (SPT)")
+    print("Experiment: Transformer(window 64) without pos_emb with Self-Pretraining (SPT)")
     print("="*50)
     config_spt = ExperimentConfig(
         pretrain=True,
@@ -190,7 +190,7 @@ def run_comparison_transformer():
     print("="*50)
 
     print("\n" + "="*50)
-    print("Experiment: Transformer without pos_emb with Self-Pretraining (SPT)")
+    print("Experiment: Transformer(window 128) without pos_emb with Self-Pretraining (SPT)")
     print("="*50)
     config_spt = ExperimentConfig(
         pretrain=True,
